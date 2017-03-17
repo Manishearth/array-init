@@ -5,6 +5,8 @@
 [Crates.io](https://crates.io/crates/array-init)
 
 
+(still kinda experimental, API may change, may be secretly unsafe)
+
 The `array-vec` crate allows you to initialize arrays
 with an initializer closure that will be called
 once for each element until the array is filled.
