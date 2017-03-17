@@ -24,7 +24,7 @@ which will be called once with the result copied over.
 # #![allow(unused)]
 # extern crate array_init;
 
-// Initialize an array of length 10 containing
+// Initialize an array of length 50 containing
 // successive squares
 
 let arr: [u32; 50] = array_init::array_init(|i| (i*i) as u32);
