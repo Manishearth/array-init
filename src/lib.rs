@@ -62,6 +62,7 @@ use core::mem;
 /// but you can
 pub unsafe trait IsArray {
     type Item;
+    /// Must assume self is uninitialized.
     fn set(&mut self, idx: usize, value: Self::Item);
     fn len() -> usize;
 }
@@ -250,7 +251,7 @@ macro_rules! impl_is_array {
             type Item = T;
             #[inline]
             fn set(&mut self, idx: usize, value: Self::Item) {
-                self[idx] = value;
+                mem::forget(mem::replace(&mut self[idx], value));
             }
 
             #[inline]
