@@ -1,0 +1,16 @@
+[package]
+authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
+name = "array-init"
+version = "0.0.1"
+license = "MIT OR Apache-2.0"
+description = "Safe wrapper for initializing fixed-size arrays"
+repository = "https://github.com/Manishearth/array-init/"
+documentation = "https://docs.rs/crate/array-init"
+
+keywords = ["abstraction", "initialization", "no_std"]
+
+[features]
+nightly = ["nodrop/use_union"]
+
+[dependencies]
+nodrop = "0.1.9"
