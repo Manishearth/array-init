@@ -1,5 +1,10 @@
 # array-init
 
+[Documentation](https://docs.rs/array-init)
+
+[Crates.io](https://crates.io/crates/array-init)
+
+
 The `array-vec` crate allows you to initialize arrays
 with an initializer closure that will be called
 once for each element until the array is filled.
