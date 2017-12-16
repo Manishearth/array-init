@@ -20,17 +20,17 @@
 //! // successive squares
 //!
 //! let arr: [u32; 50] = array_init::array_init(|i| (i*i) as u32);
-//! 
+//!
 //! // Initialize an array from an iterator
 //! // producing an array of [1,2,3,4] repeated
 //!
 //! let four = [1u32,2,3,4];
 //! let mut iter = four.iter().cloned().cycle();
 //! let arr: [u32; 50] = array_init::from_iter(iter).unwrap();
-//! 
+//!
 //! // Closures can also mutate state. We guarantee that they will be called
 //! // in order from lower to higher indices.
-//! 
+//!
 //! let mut last = 1u64;
 //! let mut secondlast = 0;
 //! let fibonacci: [u64; 50] = array_init::array_init(|_| {
@@ -40,7 +40,7 @@
 //!     this
 //! });
 //! ```
-//! 
+//!
 //! Currently, using `from_iter` and `array_init` will incur additional
 //! memcpys, which may be undesirable for a large array. This can be eliminated
 //! by using the nightly feature of this crate, which uses unions to provide
@@ -90,14 +90,14 @@ pub unsafe trait IsArray {
 /// // successive squares
 ///
 /// let arr: [u32; 50] = array_init::array_init(|i| (i*i) as u32);
-/// 
+///
 /// // Initialize an array from an iterator
 /// // producing an array of [1,2,3,4] repeated
 ///
 /// let four = [1u32,2,3,4];
 /// let mut iter = four.iter().cloned().cycle();
 /// let arr: [u32; 50] = array_init::from_iter(iter).unwrap();
-/// 
+///
 /// ```
 ///
 pub fn array_init<Array, F>(mut initializer: F) -> Array where Array: IsArray,
@@ -177,11 +177,11 @@ pub fn from_iter<Array, I>(iter: I) -> Option<Array>
 /// // successive squares
 ///
 /// let arr: [u32; 50] = array_init::array_init_copy(|i| (i*i) as u32);
-/// 
-/// 
+///
+///
 /// // Closures can also mutate state. We guarantee that they will be called
 /// // in order from lower to higher indices.
-/// 
+///
 /// let mut last = 1u64;
 /// let mut secondlast = 0;
 /// let fibonacci: [u64; 50] = array_init::array_init_copy(|_| {
@@ -246,7 +246,7 @@ pub fn from_iter_copy<Array, I>(iter: I) -> Option<Array>
 }
 
 macro_rules! impl_is_array {
-    ($size:expr) => (
+    ($($size:expr)+) => ($(
         unsafe impl<T> IsArray for [T; $size] {
             type Item = T;
             #[inline]
@@ -259,73 +259,15 @@ macro_rules! impl_is_array {
                 $size
             }
         }
-    )
+    )+)
 }
 
 // lol
 
-impl_is_array!(0);
-impl_is_array!(1);
-impl_is_array!(2);
-impl_is_array!(3);
-impl_is_array!(4);
-impl_is_array!(5);
-impl_is_array!(6);
-impl_is_array!(7);
-impl_is_array!(8);
-impl_is_array!(9);
-impl_is_array!(10);
-impl_is_array!(11);
-impl_is_array!(12);
-impl_is_array!(13);
-impl_is_array!(14);
-impl_is_array!(15);
-impl_is_array!(16);
-impl_is_array!(17);
-impl_is_array!(18);
-impl_is_array!(19);
-impl_is_array!(20);
-impl_is_array!(21);
-impl_is_array!(22);
-impl_is_array!(23);
-impl_is_array!(24);
-impl_is_array!(25);
-impl_is_array!(26);
-impl_is_array!(27);
-impl_is_array!(28);
-impl_is_array!(29);
-impl_is_array!(30);
-impl_is_array!(31);
-impl_is_array!(32);
-impl_is_array!(33);
-impl_is_array!(34);
-impl_is_array!(35);
-impl_is_array!(36);
-impl_is_array!(37);
-impl_is_array!(38);
-impl_is_array!(39);
-impl_is_array!(40);
-impl_is_array!(41);
-impl_is_array!(42);
-impl_is_array!(43);
-impl_is_array!(44);
-impl_is_array!(45);
-impl_is_array!(46);
-impl_is_array!(47);
-impl_is_array!(48);
-impl_is_array!(49);
-impl_is_array!(50);
-impl_is_array!(51);
-impl_is_array!(52);
-impl_is_array!(53);
-impl_is_array!(54);
-impl_is_array!(55);
-impl_is_array!(56);
-impl_is_array!(57);
-impl_is_array!(58);
-impl_is_array!(59);
-impl_is_array!(60);
-impl_is_array!(61);
-impl_is_array!(62);
-impl_is_array!(63);
-impl_is_array!(64);
+impl_is_array! {
+     0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+    16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+    32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+    48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+    64
+}
