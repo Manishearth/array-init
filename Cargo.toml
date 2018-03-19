@@ -12,5 +12,6 @@ keywords = ["abstraction", "initialization", "no_std"]
 [features]
 nightly = ["nodrop/use_union"]
 
-[dependencies]
-nodrop = "0.1.9"
+[dependencies.nodrop]
+version = "0.1.12"
+default-features = false
