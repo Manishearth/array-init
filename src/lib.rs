@@ -80,6 +80,9 @@ pub unsafe trait IsArray {
 /// it does not need the panic safety stuff and is more likely to have no
 /// memcpys.
 ///
+/// If your initializer panics, any elements that have been initialized
+/// will be leaked.
+///
 /// # Examples
 ///
 /// ```rust
