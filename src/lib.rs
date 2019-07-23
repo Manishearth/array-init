@@ -310,3 +310,14 @@ impl_is_array! {
     493 494 495 496 497 498 499 500 501 502 503 504
     505 506 507 508 509 510 511 512
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn seq() {
+        let seq: [usize; 5] = array_init(|i| i);
+        assert_eq!(&[0, 1, 2, 3, 4], &seq);
+    }
+}
