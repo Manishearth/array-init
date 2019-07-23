@@ -48,12 +48,3 @@ let fibonacci: [u64; 50] = array_init::array_init(|_| {
     this
 });
 ```
-
-Currently, using `from_iter` and `array_init` will incur additional
-memcpys, which may be undesirable for a large array. This can be eliminated
-by using the nightly feature of this crate, which uses unions to provide
-panic-safety. Alternatively, if your array only contains `Copy` types,
-you can use `array_init_copy` and `from_iter_copy`.
-
-Sadly, cannot guarantee right now that any of these solutions will completely
-eliminate a memcpy.

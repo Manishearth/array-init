@@ -8,10 +8,3 @@ repository = "https://github.com/Manishearth/array-init/"
 documentation = "https://docs.rs/crate/array-init"
 
 keywords = ["abstraction", "initialization", "no_std"]
-
-[features]
-nightly = ["nodrop/use_union"]
-
-[dependencies.nodrop]
-version = "0.1.12"
-default-features = false
