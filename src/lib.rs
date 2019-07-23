@@ -40,30 +40,18 @@
 //!     this
 //! });
 //! ```
-//!
-//! Currently, using `from_iter` and `array_init` will incur additional
-//! memcpys, which may be undesirable for a large array. This can be eliminated
-//! by using the nightly feature of this crate, which uses unions to provide
-//! panic-safety. Alternatively, if your array only contains `Copy` types,
-//! you can use `array_init_copy` and `from_iter_copy`.
-//!
-//! Sadly, cannot guarantee right now that any of these solutions will completely
-//! eliminate a memcpy.
-//!
 
-extern crate nodrop;
-
-use nodrop::NoDrop;
-use core::mem;
+use core::mem::{self, MaybeUninit};
+use core::ptr;
 
 /// Trait for things which are actually arrays
 ///
 /// Probably shouldn't implement this yourself,
 /// but you can
 pub unsafe trait IsArray {
+    /// The stored `T`
     type Item;
-    /// Must assume self is uninitialized.
-    fn set(&mut self, idx: usize, value: Self::Item);
+
     fn len() -> usize;
 }
 
@@ -72,13 +60,6 @@ pub unsafe trait IsArray {
 ///
 /// The initializer is given the index of the element. It is allowed
 /// to mutate external state; we will always initialize the elements in order.
-///
-/// Without the nightly feature it is very likely that this will cause memcpys.
-/// For panic safety, we internally use NoDrop, which will ensure that panics
-/// in the initializer will not cause the array to be prematurely dropped.
-/// If you are using a Copy type, prefer using `array_init_copy` since
-/// it does not need the panic safety stuff and is more likely to have no
-/// memcpys.
 ///
 /// If your initializer panics, any elements that have been initialized
 /// will be leaked.
@@ -105,14 +86,22 @@ pub unsafe trait IsArray {
 ///
 pub fn array_init<Array, F>(mut initializer: F) -> Array where Array: IsArray,
                                                                F: FnMut(usize) -> Array::Item {
-    // NoDrop makes this panic-safe
-    // We are sure to initialize the whole array here,
-    // and we do not read from the array till then, so this is safe.
-    let mut ret: NoDrop<Array> = NoDrop::new(unsafe { mem::uninitialized() });
+    let mut ret: MaybeUninit<Array> = MaybeUninit::uninit();
+    // Poor Man's array-to-pointer decay from C O:-)
+    let mut elem = ret.as_mut_ptr() as usize as *mut Array::Item;
+
     for i in 0..Array::len() {
-        Array::set(&mut ret, i, initializer(i));
+        let value = initializer(i);
+        unsafe {
+            ptr::write(elem, value);
+            // Using .add instead of offset to avoid having to check the offset in bytes not
+            // overflowing isize. We are guaranteed to be within the array, because we go one by
+            // one.
+            elem = elem.add(1);
+        }
     }
-    ret.into_inner()
+
+    unsafe { ret.assume_init() }
 }
 
 #[inline]
@@ -120,13 +109,6 @@ pub fn array_init<Array, F>(mut initializer: F) -> Array where Array: IsArray,
 ///
 /// We will iterate until the array is full or the iterator is exhausted. Returns
 /// None if the iterator is exhausted before we can fill the array.
-///
-/// Without the nightly feature it is very likely that this will cause memcpys.
-/// For panic safety, we internally use NoDrop, which will ensure that panics
-/// in the initializer will not cause the array to be prematurely dropped.
-/// If you are using a Copy type, prefer using `from_iter_copy` since
-/// it does not need the panic safety stuff and is more likely to have no
-/// memcpys.
 ///
 /// # Examples
 ///
@@ -139,111 +121,41 @@ pub fn array_init<Array, F>(mut initializer: F) -> Array where Array: IsArray,
 ///
 /// let four = [1u32,2,3,4];
 /// let mut iter = four.iter().cloned().cycle();
-/// let arr: [u32; 50] = array_init::from_iter_copy(iter).unwrap();
+/// let arr: [u32; 50] = array_init::from_iter(iter).unwrap();
 /// ```
 ///
 pub fn from_iter<Array, I>(iter: I) -> Option<Array>
     where I: IntoIterator<Item = Array::Item>,
           Array: IsArray {
-    // NoDrop makes this panic-safe
-    // We are sure to initialize the whole array here,
-    // and we do not read from the array till then, so this is safe.
-    let mut ret: NoDrop<Array> = NoDrop::new(unsafe { mem::uninitialized() });
+    let mut ret: MaybeUninit<Array> = MaybeUninit::uninit();
+    // Poor Man's array-to-pointer decay from C O:-)
+    let mut elem = ret.as_mut_ptr() as usize as *mut Array::Item;
+
     let mut count = 0;
     for item in iter.into_iter().take(Array::len()) {
-        Array::set(&mut ret, count, item);
+        unsafe {
+            ptr::write(elem, item);
+            // Using .add instead of offset to avoid having to check the offset in bytes not
+            // overflowing isize. We are guaranteed to be within the array, because we go one by
+            // one.
+            elem = elem.add(1);
+        }
         count += 1;
     }
+
     // crucial for safety!
     if count == Array::len() {
-        Some(ret.into_inner())
+        Some(unsafe { ret.assume_init() })
     } else {
-        None
-    }
-}
-
-#[inline]
-/// Initialize an array of `Copy` elements given an initializer expression
-///
-/// The initializer is given the index of the element. It is allowed
-/// to mutate external state; we will always initialize the elements in order.
-///
-/// This is preferred over `array_init` if you have a `Copy` type
-///
-/// # Examples
-///
-/// ```rust
-/// # #![allow(unused)]
-/// # extern crate array_init;
-///
-/// // Initialize an array of length 10 containing
-/// // successive squares
-///
-/// let arr: [u32; 50] = array_init::array_init_copy(|i| (i*i) as u32);
-///
-///
-/// // Closures can also mutate state. We guarantee that they will be called
-/// // in order from lower to higher indices.
-///
-/// let mut last = 1u64;
-/// let mut secondlast = 0;
-/// let fibonacci: [u64; 50] = array_init::array_init_copy(|_| {
-///     let this = last + secondlast;
-///     secondlast = last;
-///     last = this;
-///     this
-/// });
-/// ```
-///
-pub fn array_init_copy<Array, F>(mut initializer: F) -> Array where Array: IsArray,
-                                                                    F: FnMut(usize) -> Array::Item,
-                                                                    Array::Item : Copy {
-    // We are sure to initialize the whole array here,
-    // and we do not read from the array till then, so this is safe.
-    let mut ret: Array = unsafe { mem::uninitialized() };
-    for i in 0..Array::len() {
-        Array::set(&mut ret, i, initializer(i));
-    }
-    ret
-}
-
-#[inline]
-/// Initialize an array given an iterator
-///
-/// We will iterate until the array is full or the iterator is exhausted. Returns
-/// None if the iterator is exhausted before we can fill the array.
-///
-/// This is preferred over `from_iter_copy` if you have a `Copy` type
-///
-/// # Examples
-///
-/// ```rust
-/// # #![allow(unused)]
-/// # extern crate array_init;
-///
-/// // Initialize an array from an iterator
-/// // producing an array of [1,2,3,4] repeated
-///
-/// let four = [1u32,2,3,4];
-/// let mut iter = four.iter().cloned().cycle();
-/// let arr: [u32; 50] = array_init::from_iter_copy(iter).unwrap();
-/// ```
-pub fn from_iter_copy<Array, I>(iter: I) -> Option<Array>
-    where I: IntoIterator<Item = Array::Item>,
-          Array: IsArray,
-          Array::Item : Copy {
-    // We are sure to initialize the whole array here,
-    // and we do not read from the array till then, so this is safe.
-    let mut ret: Array = unsafe { mem::uninitialized() };
-    let mut count = 0;
-    for item in iter.into_iter().take(Array::len()) {
-        Array::set(&mut ret, count, item);
-        count += 1;
-    }
-    // crucial for safety!
-    if count == Array::len() {
-        Some(ret)
-    } else {
+        if mem::needs_drop::<Array::Item>() {
+            let mut elem = ret.as_mut_ptr() as usize as *mut Array::Item;
+            for _ in 0..count {
+                unsafe {
+                    ptr::drop_in_place(elem);
+                    elem = elem.add(1);
+                }
+            }
+        }
         None
     }
 }
@@ -252,10 +164,6 @@ macro_rules! impl_is_array {
     ($($size:expr)+) => ($(
         unsafe impl<T> IsArray for [T; $size] {
             type Item = T;
-            #[inline]
-            fn set(&mut self, idx: usize, value: Self::Item) {
-                mem::forget(mem::replace(&mut self[idx], value));
-            }
 
             #[inline]
             fn len() -> usize {
@@ -309,4 +217,15 @@ impl_is_array! {
     481 482 483 484 485 486 487 488 489 490 491 492
     493 494 495 496 497 498 499 500 501 502 503 504
     505 506 507 508 509 510 511 512
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn seq() {
+        let seq: [usize; 5] = array_init(|i| i);
+        assert_eq!(&[0, 1, 2, 3, 4], &seq);
+    }
 }
