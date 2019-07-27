@@ -335,7 +335,7 @@ mod tests {
                     }
                 })
             ;
-            let _ = result.map(|_array| unreachable!());
+            assert!(result.is_err());
         });
     }
 
@@ -345,7 +345,7 @@ mod tests {
         DropChecker::with(|drop_checker| {
             let iterator = (0 .. 3).map(|_| drop_checker.new_element());
             let result: Option<[_; 5]> = from_iter(iterator);
-            let _ = result.map(|_array| unreachable!());
+            assert!(result.is_none());
         });
     }
 
@@ -407,9 +407,7 @@ mod tests {
                         .map(|slot| usize::from(slot.get() as u8))
                         .sum()
                 ;
-                if leak_count != 0 {
-                    panic!("{} elements have leaked.", leak_count);
-                }
+                assert_eq!(leak_count, 0, "No elements leaked");
             }
         }
     }
