@@ -21,19 +21,16 @@ which will be called once with the result copied over.
 # Examples:
 
 ```rust
-# #![allow(unused)]
-# extern crate array_init;
-
 // Initialize an array of length 50 containing
 // successive squares
 
-let arr: [u32; 50] = array_init::array_init(|i| (i*i) as u32);
+let arr: [usize; 50] = array_init::array_init(|i| i * i);
 
 // Initialize an array from an iterator
 // producing an array of [1,2,3,4] repeated
 
-let four = [1u32,2,3,4];
-let mut iter = four.iter().cloned().cycle();
+let four = [1,2,3,4];
+let mut iter = four.iter().copied().cycle();
 let arr: [u32; 50] = array_init::from_iter(iter).unwrap();
 
 // Closures can also mutate state. We guarantee that they will be called
