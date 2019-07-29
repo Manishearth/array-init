@@ -150,21 +150,20 @@ where
     if mem::needs_drop::<Array::Item>().not() {
         let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
         // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
-        let base_ptr = array.as_mut_ptr() as *mut Array::Item;
+        let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
 
         //   - Using `ptr::add` instead of `offset` avoids having to check
         //     that the offset in bytes does not overflow isize.
         //
         // # Safety
         //
-        //   - `IsArray`'s contract guarantees that we are within the array:
-        //     `0 <= i < Array::len`
-        //
-        //       - For instance, `Array::len <= (isize::MAX as usize)`
+        //   - `IsArray`'s contract guarantees that we are within the array
+        //     since we have `0 <= i < Array::len`
         unsafe {
             for i in 0 .. Array::len() {
                 let value_i = initializer(i)?;
-                base_ptr.add(i).write(value_i);
+                ptr_i.write(value_i);
+                ptr_i = ptr_i.add(1);
             }
             return Ok(array.assume_init());
         }
@@ -211,16 +210,14 @@ where
     //  1. By construction, array[.. initiliazed_count] only contains
     //     init elements, thus there is no risk of dropping uninit data;
     //
-    //  2. `IsArray`'s contract guarantees that we are within the array:
-    //     `0 <= i < Array::len`
-    //
-    //       - For instance, `Array::len <= (isize::MAX as usize)`
+    //  2. `IsArray`'s contract guarantees that we are within the array
+    //     since we have `0 <= i < Array::len`
     unsafe {
         let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
         // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
-        let base_ptr = array.as_mut_ptr() as *mut Array::Item;
+        let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
         let mut panic_guard = UnsafeDropSliceGuard {
-            base_ptr,
+            base_ptr: ptr_i,
             initialized_count: 0,
         };
 
@@ -231,7 +228,8 @@ where
             // dropping the elements in `base_ptr[.. i]`
             let value_i = initializer(i)?;
             // this cannot panic
-            panic_guard.base_ptr.add(i).write(value_i);
+            ptr_i.write(value_i);
+            ptr_i = ptr_i.add(1);
         }
         // From now on, the code can no longer `panic!`, let's take the
         // symbolic ownership back
