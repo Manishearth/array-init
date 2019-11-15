@@ -45,7 +45,6 @@ use ::core::{
     mem::{self,
         MaybeUninit,
     },
-    ops::Not,
     ptr,
     slice,
 };
@@ -147,7 +146,7 @@ where
     Array : IsArray,
     F : FnMut(usize) -> Result<Array::Item, Err>,
 {
-    if mem::needs_drop::<Array::Item>().not() {
+    if !mem::needs_drop::<Array::Item>() {
         let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
         // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
         let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
