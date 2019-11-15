@@ -4,7 +4,7 @@ authors = [
   "Michal 'vorner' Vaner <vorner@vorner.cz>",
 ]
 name = "array-init"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 description = "Safe wrapper for initializing fixed-size arrays"
