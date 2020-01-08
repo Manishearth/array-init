@@ -139,7 +139,7 @@ where
 }
 
 #[inline]
-fn try_array_init<Array, Err, F> (
+pub fn try_array_init<Array, Err, F> (
     mut initializer: F,
 ) -> Result<Array, Err>
 where
