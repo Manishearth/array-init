@@ -12,3 +12,6 @@ repository = "https://github.com/Manishearth/array-init/"
 documentation = "https://docs.rs/crate/array-init"
 
 keywords = ["abstraction", "initialization", "no_std"]
+
+[features]
+const-generics = []
