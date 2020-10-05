@@ -1,5 +1,5 @@
 #![no_std]
-#![cfg_attr(feature = "const-generics", feature(min_const_generics))]
+#![cfg_attr(feature = "const-generics", feature(const_generics))]
 
 //! The `array-init` crate allows you to initialize arrays
 //! with an initializer closure that will be called
@@ -303,7 +303,7 @@ impl_is_array! {
 #[cfg(feature = "const-generics")]
 unsafe impl<T, const N: usize> IsArray for [T; N] {
     type Item = T;
-    
+
     #[inline]
     fn len() -> usize {
         N
