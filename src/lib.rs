@@ -168,6 +168,11 @@ where
     Array: IsArray,
     F: FnMut(usize) -> Result<Array::Item, Err>,
 {
+    // The implementation differentiate two cases:
+    //   A) `Array::Item` does not need to be dropped. Even if the initializer panics
+    //      or returns `Err` we will not leak memory.
+    //   B) `Array:Item` needs to be dropped. We must keep track of which elements have
+    //      been initialized so far, and drop them if we encounter a panic or `Err` midway.
     if !mem::needs_drop::<Array::Item>() {
         let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
         // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
@@ -180,6 +185,7 @@ where
         unsafe {
             for i in 0..Array::len() {
                 let value_i = initializer(i)?;
+                // We overwrite *ptr_i previously undefined value without reading or dropping it.
                 ptr_i.write(value_i);
                 ptr_i = ptr_i.add(1);
             }
@@ -239,6 +245,7 @@ where
                 // dropping the elements in `base_ptr[.. i]`
                 let value_i = initializer(i)?;
                 // this cannot panic
+                // the previously uninit value is overwritten without being read or dropped
                 ptr_i.write(value_i);
                 ptr_i = ptr_i.add(1);
             }
