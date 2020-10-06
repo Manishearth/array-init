@@ -173,9 +173,6 @@ where
         // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
         let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
 
-        //   - Using `ptr::add` instead of `offset` avoids having to check
-        //     that the offset in bytes does not overflow isize.
-        //
         // # Safety
         //
         //   - `IsArray`'s contract guarantees that we are within the array
@@ -216,11 +213,8 @@ where
             }
         }
 
-        //  1. If the `initializer(i)` call panics, `panic_guard` is dropped,
-        //     dropping `array[.. initialized_count]` => no memory leak!
-        //
-        //  2. Using `ptr::add` instead of `offset` avoids having to check
-        //     that the offset in bytes does not overflow isize.
+        //  If the `initializer(i)` call panics, `panic_guard` is dropped,
+        //  dropping `array[.. initialized_count]` => no memory leak!
         //
         // # Safety
         //
