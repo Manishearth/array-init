@@ -133,6 +133,36 @@ where
 }
 
 #[inline]
+/// Initialize an array given an initializer expression that may fail.
+///
+/// The initializer is given the index (between 0 and `Array:len() - 1` included) of the element, and returns a `Result<Array::Item, Err>,`. It is allowed
+/// to mutate external state; we will always initialize from lower to higher indices.
+///
+/// # Examples
+///
+/// ```rust
+/// # #![allow(unused)]
+/// # extern crate array_init;
+/// #
+/// #[derive(PartialEq,Eq,Debug)]
+/// struct DivideByZero;
+/// 
+/// fn inv(i : usize) -> Result<f64,DivideByZero> {
+///     if i == 0 {
+///         Err(DivideByZero)
+///     } else {
+///         Ok(1./(i as f64))
+///     }
+/// }
+/// 
+/// // If the initializer does not fail, we get an initialized array
+/// let arr: [f64; 3] = array_init::try_array_init(|i| inv(3-i)).unwrap();
+/// assert_eq!(arr,[1./3., 1./2., 1./1.]);
+///
+/// // The initializer fails
+/// let res : Result<[f64;4], DivideByZero> = array_init::try_array_init(|i| inv(3-i));
+/// assert_eq!(res,Err(DivideByZero));
+/// ```
 pub fn try_array_init<Array, Err, F>(mut initializer: F) -> Result<Array, Err>
 where
     Array: IsArray,
