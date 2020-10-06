@@ -146,7 +146,7 @@ where
 /// #
 /// #[derive(PartialEq,Eq,Debug)]
 /// struct DivideByZero;
-/// 
+///
 /// fn inv(i : usize) -> Result<f64,DivideByZero> {
 ///     if i == 0 {
 ///         Err(DivideByZero)
@@ -154,7 +154,7 @@ where
 ///         Ok(1./(i as f64))
 ///     }
 /// }
-/// 
+///
 /// // If the initializer does not fail, we get an initialized array
 /// let arr: [f64; 3] = array_init::try_array_init(|i| inv(3-i)).unwrap();
 /// assert_eq!(arr,[1./3., 1./2., 1./1.]);
