@@ -457,7 +457,7 @@ mod tests {
                     .iter()
                     .map(|slot| usize::from(slot.get() as u8))
                     .sum();
-                assert_eq!(leak_count, 0, "No elements leaked");
+                assert_eq!(leak_count, 0, "{} elements leaked", leak_count);
             }
         }
     }
