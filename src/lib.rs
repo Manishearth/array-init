@@ -186,74 +186,74 @@ where
                 ptr_i.write(value_i);
                 ptr_i = ptr_i.add(1);
             }
-            return Ok(array.assume_init());
+            Ok(array.assume_init())
         }
-    }
+    } else {
+        // else: `mem::needs_drop::<Array::Item>()`
 
-    // else: `mem::needs_drop::<Array::Item>()`
+        /// # Safety
+        ///
+        ///   - `base_ptr[.. initialized_count]` must be a slice of init elements...
+        ///
+        ///   - ... that must be sound to `ptr::drop_in_place` if/when
+        ///     `UnsafeDropSliceGuard` is dropped: "symbolic ownership"
+        struct UnsafeDropSliceGuard<Item> {
+            base_ptr: *mut Item,
+            initialized_count: usize,
+        }
 
-    /// # Safety
-    ///
-    ///   - `base_ptr[.. initialized_count]` must be a slice of init elements...
-    ///
-    ///   - ... that must be sound to `ptr::drop_in_place` if/when
-    ///     `UnsafeDropSliceGuard` is dropped: "symbolic ownership"
-    struct UnsafeDropSliceGuard<Item> {
-        base_ptr: *mut Item,
-        initialized_count: usize,
-    }
-
-    impl<Item> Drop for UnsafeDropSliceGuard<Item> {
-        fn drop(self: &'_ mut Self) {
-            unsafe {
-                // # Safety
-                //
-                //   - the contract of the struct guarantees that this is sound
-                ptr::drop_in_place(slice::from_raw_parts_mut(
-                    self.base_ptr,
-                    self.initialized_count,
-                ));
+        impl<Item> Drop for UnsafeDropSliceGuard<Item> {
+            fn drop(self: &'_ mut Self) {
+                unsafe {
+                    // # Safety
+                    //
+                    //   - the contract of the struct guarantees that this is sound
+                    ptr::drop_in_place(slice::from_raw_parts_mut(
+                        self.base_ptr,
+                        self.initialized_count,
+                    ));
+                }
             }
         }
-    }
 
-    //  1. If the `initializer(i)` call panics, `panic_guard` is dropped,
-    //     dropping `array[.. initialized_count]` => no memory leak!
-    //
-    //  2. Using `ptr::add` instead of `offset` avoids having to check
-    //     that the offset in bytes does not overflow isize.
-    //
-    // # Safety
-    //
-    //  1. By construction, array[.. initiliazed_count] only contains
-    //     init elements, thus there is no risk of dropping uninit data;
-    //
-    //  2. `IsArray`'s contract guarantees that we are within the array
-    //     since we have `0 <= i < Array::len`
-    unsafe {
-        let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
-        // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
-        let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
-        let mut panic_guard = UnsafeDropSliceGuard {
-            base_ptr: ptr_i,
-            initialized_count: 0,
-        };
+        //  1. If the `initializer(i)` call panics, `panic_guard` is dropped,
+        //     dropping `array[.. initialized_count]` => no memory leak!
+        //
+        //  2. Using `ptr::add` instead of `offset` avoids having to check
+        //     that the offset in bytes does not overflow isize.
+        //
+        // # Safety
+        //
+        //  1. By construction, array[.. initiliazed_count] only contains
+        //     init elements, thus there is no risk of dropping uninit data;
+        //
+        //  2. `IsArray`'s contract guarantees that we are within the array
+        //     since we have `0 <= i < Array::len`
+        unsafe {
+            let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
+            // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
+            let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
+            let mut panic_guard = UnsafeDropSliceGuard {
+                base_ptr: ptr_i,
+                initialized_count: 0,
+            };
 
-        for i in 0..Array::len() {
-            // Invariant: `i` elements have already been initialized
-            panic_guard.initialized_count = i;
-            // If this panics or fails, `panic_guard` is dropped, thus
-            // dropping the elements in `base_ptr[.. i]`
-            let value_i = initializer(i)?;
-            // this cannot panic
-            ptr_i.write(value_i);
-            ptr_i = ptr_i.add(1);
+            for i in 0..Array::len() {
+                // Invariant: `i` elements have already been initialized
+                panic_guard.initialized_count = i;
+                // If this panics or fails, `panic_guard` is dropped, thus
+                // dropping the elements in `base_ptr[.. i]`
+                let value_i = initializer(i)?;
+                // this cannot panic
+                ptr_i.write(value_i);
+                ptr_i = ptr_i.add(1);
+            }
+            // From now on, the code can no longer `panic!`, let's take the
+            // symbolic ownership back
+            mem::forget(panic_guard);
+
+            Ok(array.assume_init())
         }
-        // From now on, the code can no longer `panic!`, let's take the
-        // symbolic ownership back
-        mem::forget(panic_guard);
-
-        Ok(array.assume_init())
     }
 }
 
