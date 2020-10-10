@@ -66,8 +66,8 @@ pub unsafe trait IsArray {
 #[inline]
 /// Initialize an array given an initializer expression.
 ///
-/// The initializer is given the index (between 0 and `Array:len() - 1` included) of the element. It is allowed
-/// to mutate external state; we will always initialize from lower to higher indices.
+/// The initializer is given the index of the element. It is allowed
+/// to mutate external state; we will always initialize the elements in order.
 ///
 /// # Examples
 ///
