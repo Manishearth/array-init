@@ -168,7 +168,7 @@ where
     Array: IsArray,
     F: FnMut(usize) -> Result<Array::Item, Err>,
 {
-    // The implementation differentiate two cases:
+    // The implementation differentiates two cases:
     //   A) `Array::Item` does not need to be dropped. Even if the initializer panics
     //      or returns `Err` we will not leak memory.
     //   B) `Array:Item` needs to be dropped. We must keep track of which elements have
