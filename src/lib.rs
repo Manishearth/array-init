@@ -89,7 +89,7 @@ where
     enum Unreachable {}
 
     try_array_init(
-        // monomorphise into an unfallible version
+        // monomorphise into an infallible version
         move |i| -> Result<Array::Item, Unreachable> { Ok(initializer(i)) },
     )
     .unwrap_or_else(
