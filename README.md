@@ -5,7 +5,6 @@
 [Crates.io](https://crates.io/crates/array-init)
 
 
-(still kinda experimental, API may change, may be secretly unsafe)
 
 The `array-init` crate allows you to initialize arrays
 with an initializer closure that will be called
