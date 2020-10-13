@@ -17,7 +17,7 @@ which will be called once with the result copied over.
 Care is taken not to leak memory shall the initialization
 fail.
 
-# Examples:
+## Examples:
 
 ```rust
 // Initialize an array of length 50 containing
@@ -45,7 +45,7 @@ let fibonacci: [u64; 50] = array_init::array_init(|_| {
 });
 ```
 
-# Licensing
+## Licensing
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.
 
