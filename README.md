@@ -1,11 +1,7 @@
 # array-init
 
-[Documentation](https://docs.rs/array-init)
-
-[Crates.io](https://crates.io/crates/array-init)
-
-
-(still kinda experimental, API may change, may be secretly unsafe)
+[![Crates.io](https://img.shields.io/crates/v/array-init?style=flat-square)](https://crates.io/crates/array-init)
+[![Docs](https://img.shields.io/badge/docs-doc.rs-blue?style=flat-square)](https://docs.rs/array-init)
 
 The `array-init` crate allows you to initialize arrays
 with an initializer closure that will be called
@@ -18,7 +14,10 @@ individually (`[a(), b(), c(), ...]`), or specify
 one initializer for a `Copy` type (`[a(); N]`),
 which will be called once with the result copied over.
 
-# Examples:
+Care is taken not to leak memory shall the initialization
+fail.
+
+## Examples:
 
 ```rust
 // Initialize an array of length 50 containing
@@ -46,7 +45,7 @@ let fibonacci: [u64; 50] = array_init::array_init(|_| {
 });
 ```
 
-# Licensing
+## Licensing
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.
 

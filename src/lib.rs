@@ -12,6 +12,9 @@
 //! one initializer for a `Copy` type (`[a(); N]`),
 //! which will be called once with the result copied over.
 //!
+//! Care is taken not to leak memory shall the initialization
+//! fail.
+//!
 //! # Examples:
 //! ```rust
 //! # #![allow(unused)]
