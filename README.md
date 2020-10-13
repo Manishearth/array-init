@@ -1,10 +1,7 @@
 # array-init
 
-[Documentation](https://docs.rs/array-init)
-
-[Crates.io](https://crates.io/crates/array-init)
-
-
+[![Crates.io](https://img.shields.io/crates/v/array-init?style=flat-square)](https://crates.io/crates/array-init)
+[![Docs](https://img.shields.io/badge/docs-doc.rs-blue?style=flat-square)](https://docs.rs/array-init)
 
 The `array-init` crate allows you to initialize arrays
 with an initializer closure that will be called
