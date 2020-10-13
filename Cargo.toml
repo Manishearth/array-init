@@ -8,10 +8,13 @@ version = "0.1.1"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 description = "Safe wrapper for initializing fixed-size arrays"
+readme = "README.md"
 repository = "https://github.com/Manishearth/array-init/"
 documentation = "https://docs.rs/crate/array-init"
 
 keywords = ["abstraction", "initialization", "no_std"]
+categories = ["data-structures", "no-std"]
+exclude = [".travis.yml"]
 
 [features]
 const-generics = []
