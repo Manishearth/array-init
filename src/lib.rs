@@ -1,5 +1,4 @@
 #![no_std]
-#![cfg_attr(feature = "const-generics", feature(const_generics))]
 
 //! The `array-init` crate allows you to initialize arrays
 //! with an initializer closure that will be called
