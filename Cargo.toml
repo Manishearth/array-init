@@ -15,6 +15,3 @@ documentation = "https://docs.rs/crate/array-init"
 keywords = ["abstraction", "initialization", "no_std"]
 categories = ["data-structures", "no-std"]
 exclude = [".travis.yml"]
-
-[features]
-const-generics = []
