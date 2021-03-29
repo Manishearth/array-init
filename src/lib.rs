@@ -49,22 +49,6 @@ use ::core::{
     ptr, slice,
 };
 
-/// Trait for things which are actually arrays.
-///
-/// Probably shouldn't implement this yourself, but you can.
-///
-/// # Safety
-///
-///   - if `Array : IsArray`, then it must be sound to transmute
-///     between `Array` and `[Array::Item; Array::len()]`
-pub unsafe trait IsArray {
-    /// The stored `T`
-    type Item;
-
-    /// The number of elements of the array
-    fn len() -> usize;
-}
-
 #[inline]
 /// Initialize an array given an initializer expression.
 ///
@@ -83,16 +67,15 @@ pub unsafe trait IsArray {
 ///
 /// assert!(arr.iter().enumerate().all(|(i, &x)| x == i * i));
 /// ```
-pub fn array_init<Array, F>(mut initializer: F) -> Array
+pub fn array_init<F, T, const N: usize>(mut initializer: F) -> [T; N]
 where
-    Array: IsArray,
-    F: FnMut(usize) -> Array::Item,
+    F: FnMut(usize) -> T,
 {
     enum Unreachable {}
 
     try_array_init(
         // monomorphise into an infallible version
-        move |i| -> Result<Array::Item, Unreachable> { Ok(initializer(i)) },
+        move |i| -> Result<T, Unreachable> { Ok(initializer(i)) },
     )
     .unwrap_or_else(
         // zero-cost unwrap
@@ -122,10 +105,9 @@ where
 /// let mut iter = four.iter().copied().cycle();
 /// let arr: [u32; 50] = array_init::from_iter(iter).unwrap();
 /// ```
-pub fn from_iter<Array, Iterable>(iterable: Iterable) -> Option<Array>
+pub fn from_iter<Iterable, T, const N: usize>(iterable: Iterable) -> Option<[T; N]>
 where
-    Iterable: IntoIterator<Item = Array::Item>,
-    Array: IsArray,
+    Iterable: IntoIterator<Item = T>,
 {
     try_array_init({
         let mut iterator = iterable.into_iter();
@@ -137,7 +119,7 @@ where
 #[inline]
 /// Initialize an array given an initializer expression that may fail.
 ///
-/// The initializer is given the index (between 0 and `Array:len() - 1` included) of the element, and returns a `Result<Array::Item, Err>,`. It is allowed
+/// The initializer is given the index (between 0 and `N - 1` included) of the element, and returns a `Result<T, Err>,`. It is allowed
 /// to mutate external state; we will always initialize from lower to higher indices.
 ///
 /// # Examples
@@ -165,27 +147,25 @@ where
 /// let res : Result<[f64;4], DivideByZero> = array_init::try_array_init(|i| inv(3-i));
 /// assert_eq!(res,Err(DivideByZero));
 /// ```
-pub fn try_array_init<Array, Err, F>(mut initializer: F) -> Result<Array, Err>
+pub fn try_array_init<Err, F, T, const N: usize>(mut initializer: F) -> Result<[T; N], Err>
 where
-    Array: IsArray,
-    F: FnMut(usize) -> Result<Array::Item, Err>,
+    F: FnMut(usize) -> Result<T, Err>,
 {
     // The implementation differentiates two cases:
-    //   A) `Array::Item` does not need to be dropped. Even if the initializer panics
+    //   A) `T` does not need to be dropped. Even if the initializer panics
     //      or returns `Err` we will not leak memory.
-    //   B) `Array:Item` needs to be dropped. We must keep track of which elements have
+    //   B) `T` needs to be dropped. We must keep track of which elements have
     //      been initialized so far, and drop them if we encounter a panic or `Err` midway.
-    if !mem::needs_drop::<Array::Item>() {
-        let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
+    if !mem::needs_drop::<T>() {
+        let mut array: MaybeUninit<[T; N]> = MaybeUninit::uninit();
         // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
-        let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
+        let mut ptr_i = array.as_mut_ptr() as *mut T;
 
         // # Safety
         //
-        //   - `IsArray`'s contract guarantees that we are within the array
-        //     since we have `0 <= i < Array::len`
+        //   - we are within the array since we have `0 <= i < N`
         unsafe {
-            for i in 0..Array::len() {
+            for i in 0..N {
                 let value_i = initializer(i)?;
                 // We overwrite *ptr_i previously undefined value without reading or dropping it.
                 ptr_i.write(value_i);
@@ -194,7 +174,7 @@ where
             Ok(array.assume_init())
         }
     } else {
-        // else: `mem::needs_drop::<Array::Item>()`
+        // else: `mem::needs_drop::<T>()`
 
         /// # Safety
         ///
@@ -229,18 +209,17 @@ where
         //  1. By construction, array[.. initiliazed_count] only contains
         //     init elements, thus there is no risk of dropping uninit data;
         //
-        //  2. `IsArray`'s contract guarantees that we are within the array
-        //     since we have `0 <= i < Array::len`
+        //  2. we are within the array since we have `0 <= i < N`
         unsafe {
-            let mut array: MaybeUninit<Array> = MaybeUninit::uninit();
+            let mut array: MaybeUninit<[T; N]> = MaybeUninit::uninit();
             // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
-            let mut ptr_i = array.as_mut_ptr() as *mut Array::Item;
+            let mut ptr_i = array.as_mut_ptr() as *mut T;
             let mut panic_guard = UnsafeDropSliceGuard {
                 base_ptr: ptr_i,
                 initialized_count: 0,
             };
 
-            for i in 0..Array::len() {
+            for i in 0..N {
                 // Invariant: `i` elements have already been initialized
                 panic_guard.initialized_count = i;
                 // If this panics or fails, `panic_guard` is dropped, thus
@@ -257,15 +236,6 @@ where
 
             Ok(array.assume_init())
         }
-    }
-}
-
-unsafe impl<T, const N: usize> IsArray for [T; N] {
-    type Item = T;
-
-    #[inline]
-    fn len() -> usize {
-        N
     }
 }
 
@@ -307,11 +277,6 @@ mod tests {
             let result: Option<[_; 5]> = from_iter(iterator);
             assert!(result.is_none());
         });
-    }
-
-    #[test]
-    fn test_513_len() {
-        assert_eq!(<[u32; 513] as IsArray>::len(), 513)
     }
 
     #[test]
