@@ -103,13 +103,48 @@ where
 ///
 /// let four = [1,2,3,4];
 /// let mut iter = four.iter().copied().cycle();
-/// let arr: [u32; 50] = array_init::from_iter(iter).unwrap();
+/// let arr: [u32; 10] = array_init::from_iter(iter).unwrap();
+/// assert_eq!(arr, [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]);
 /// ```
 pub fn from_iter<Iterable, T, const N: usize>(iterable: Iterable) -> Option<[T; N]>
 where
     Iterable: IntoIterator<Item = T>,
 {
-    try_array_init({
+    try_array_init_impl::<_, _, T, N, 1>({
+        let mut iterator = iterable.into_iter();
+        move |_| iterator.next().ok_or(())
+    })
+    .ok()
+}
+
+#[inline]
+/// Initialize an array in reverse given an iterator
+///
+/// We will iterate until the array is full or the iterator is exhausted. Returns
+/// `None` if the iterator is exhausted before we can fill the array.
+///
+///   - Once the array is full, extra elements from the iterator (if any)
+///     won't be consumed.
+///
+/// # Examples
+///
+/// ```rust
+/// # #![allow(unused)]
+/// # extern crate array_init;
+/// #
+/// // Initialize an array from an iterator
+/// // producing an array of [4,3,2,1] repeated, finishing with 1.
+///
+/// let four = [1,2,3,4];
+/// let mut iter = four.iter().copied().cycle();
+/// let arr: [u32; 10] = array_init::from_iter_reversed(iter).unwrap();
+/// assert_eq!(arr, [2, 1, 4, 3, 2, 1, 4, 3, 2, 1]);
+/// ```
+pub fn from_iter_reversed<Iterable, T, const N: usize>(iterable: Iterable) -> Option<[T; N]>
+where
+    Iterable: IntoIterator<Item = T>,
+{
+    try_array_init_impl::<_, _, T, N, -1>({
         let mut iterator = iterable.into_iter();
         move |_| iterator.next().ok_or(())
     })
@@ -147,7 +182,17 @@ where
 /// let res : Result<[f64;4], DivideByZero> = array_init::try_array_init(|i| inv(3-i));
 /// assert_eq!(res,Err(DivideByZero));
 /// ```
-pub fn try_array_init<Err, F, T, const N: usize>(mut initializer: F) -> Result<[T; N], Err>
+pub fn try_array_init<Err, F, T, const N: usize>(initializer: F) -> Result<[T; N], Err>
+where
+    F: FnMut(usize) -> Result<T, Err>,
+{
+    try_array_init_impl::<Err, F, T, N, 1>(initializer)
+}
+
+#[inline]
+fn try_array_init_impl<Err, F, T, const N: usize, const D: i8>(
+    mut initializer: F,
+) -> Result<[T; N], Err>
 where
     F: FnMut(usize) -> Result<T, Err>,
 {
@@ -163,13 +208,25 @@ where
 
         // # Safety
         //
-        //   - we are within the array since we have `0 <= i < N`
+        //   - for D > 0, we are within the array since we start from the
+        //     beginning of the array, and we have `0 <= i < N`.
+        //   - for D < 0, we start at the end of the array and go back one
+        //     place before writing, going back N times in total, finishing
+        //     at the start of the array.
         unsafe {
+            if D < 0 {
+                ptr_i = ptr_i.add(N);
+            }
             for i in 0..N {
                 let value_i = initializer(i)?;
                 // We overwrite *ptr_i previously undefined value without reading or dropping it.
+                if D < 0 {
+                    ptr_i = ptr_i.sub(1);
+                }
                 ptr_i.write(value_i);
-                ptr_i = ptr_i.add(1);
+                if D > 0 {
+                    ptr_i = ptr_i.add(1);
+                }
             }
             Ok(array.assume_init())
         }
@@ -206,14 +263,25 @@ where
         //
         // # Safety
         //
-        //  1. By construction, array[.. initiliazed_count] only contains
-        //     init elements, thus there is no risk of dropping uninit data;
+        //  1. - For D > 0, by construction, array[.. initiliazed_count] only
+        //       contains init elements, thus there is no risk of dropping
+        //       uninit data;
+        //     - For D < 0, by construction, array[N - initialized_count..] only
+        //       contains init elements.
         //
-        //  2. we are within the array since we have `0 <= i < N`
+        //  2. - for D > 0, we are within the array since we start from the
+        //       beginning of the array, and we have `0 <= i < N`.
+        //     - for D < 0, we start at the end of the array and go back one
+        //       place before writing, going back N times in total, finishing
+        //       at the start of the array.
+        //
         unsafe {
             let mut array: MaybeUninit<[T; N]> = MaybeUninit::uninit();
             // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
             let mut ptr_i = array.as_mut_ptr() as *mut T;
+            if D < 0 {
+                ptr_i = ptr_i.add(N);
+            }
             let mut panic_guard = UnsafeDropSliceGuard {
                 base_ptr: ptr_i,
                 initialized_count: 0,
@@ -223,12 +291,19 @@ where
                 // Invariant: `i` elements have already been initialized
                 panic_guard.initialized_count = i;
                 // If this panics or fails, `panic_guard` is dropped, thus
-                // dropping the elements in `base_ptr[.. i]`
+                // dropping the elements in `base_ptr[.. i]` for D > 0 or
+                // `base_ptr[N - i..]` for D < 0.
                 let value_i = initializer(i)?;
                 // this cannot panic
                 // the previously uninit value is overwritten without being read or dropped
+                if D < 0 {
+                    ptr_i = ptr_i.sub(1);
+                    panic_guard.base_ptr = ptr_i;
+                }
                 ptr_i.write(value_i);
-                ptr_i = ptr_i.add(1);
+                if D > 0 {
+                    ptr_i = ptr_i.add(1);
+                }
             }
             // From now on, the code can no longer `panic!`, let's take the
             // symbolic ownership back
@@ -275,6 +350,15 @@ mod tests {
         DropChecker::with(|drop_checker| {
             let iterator = (0..3).map(|_| drop_checker.new_element());
             let result: Option<[_; 5]> = from_iter(iterator);
+            assert!(result.is_none());
+        });
+    }
+
+    #[test]
+    fn from_iter_reversed_no_drop() {
+        DropChecker::with(|drop_checker| {
+            let iterator = (0..3).map(|_| drop_checker.new_element());
+            let result: Option<[_; 5]> = from_iter_reversed(iterator);
             assert!(result.is_none());
         });
     }
