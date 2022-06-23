@@ -275,12 +275,12 @@ where
         //       place before writing, going back N times in total, finishing
         //       at the start of the array.
         //
-        unsafe {
+        
             let mut array: MaybeUninit<[T; N]> = MaybeUninit::uninit();
             // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
             let mut ptr_i = array.as_mut_ptr() as *mut T;
             if D < 0 {
-                ptr_i = ptr_i.add(N);
+                ptr_i = unsafe { ptr_i.add(N) };
             }
             let mut panic_guard = UnsafeDropSliceGuard {
                 base_ptr: ptr_i,
@@ -297,20 +297,20 @@ where
                 // this cannot panic
                 // the previously uninit value is overwritten without being read or dropped
                 if D < 0 {
-                    ptr_i = ptr_i.sub(1);
+                    ptr_i = unsafe { ptr_i.sub(1) };
                     panic_guard.base_ptr = ptr_i;
                 }
-                ptr_i.write(value_i);
+                unsafe { ptr_i.write(value_i) };
                 if D > 0 {
-                    ptr_i = ptr_i.add(1);
+                    ptr_i = unsafe { ptr_i.add(1) };
                 }
             }
             // From now on, the code can no longer `panic!`, let's take the
             // symbolic ownership back
             mem::forget(panic_guard);
 
-            Ok(array.assume_init())
-        }
+            Ok(unsafe { array.assume_init() })
+        
     }
 }
 
