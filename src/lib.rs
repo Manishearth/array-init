@@ -179,23 +179,6 @@ where
 ///
 /// The initializer is given the index of the element. It is allowed
 /// to mutate external state; we will always initialize the elements in order.
-///
-/// # Examples
-///
-/// ```rust
-/// use array_init::*;
-///
-/// async fn uni(i: usize) -> char {
-///     println!("pretend we are doing hard asynchronous work...");
-///     char::from_u32(0x2080u32 + i as u32).unwrap()
-/// }
-///
-/// #[tokio::main]
-/// async fn main() {
-///     let async_arr: [char; 10] = async_array_init(uni).await;
-///     println!("{:?}", async_arr);
-/// }
-/// ```
 pub async fn async_array_init<F, Fut, T, const N: usize>(mut initializer: F)
     -> [T; N]
 where
@@ -211,33 +194,6 @@ where
 /// The initializer is given the index (between 0 and `N - 1` included) of the element, and returns
 /// a `Result<T, Err>,`. It is allowed to mutate external state; we will always initialize from
 /// lower to higher indices.
-///
-/// # Examples
-///
-/// ```rust
-/// use array_init::*;
-/// use std::collections::HashMap;
-/// use reqwest::{Client, Result, multipart::Form};
-///
-/// async fn async_sha256(i: usize) -> Result<String> {
-///     let client = Client::new();
-///     let url = "https://propagationtools.com/api/hash/?cached";
-///     let msg = format!("array-init async {}", i);
-///     let form = Form::new().text("s", msg);
-///     let res = client.post(url).multipart(form).send().await?;
-///     let json_data: HashMap<String, String> = res.json().await?;
-///
-///     Ok(json_data["sha256"].clone())
-/// }
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let async_arr: [String; 10] = try_async_array_init(async_sha256).await?;
-///     println!("{:?}", async_arr);
-///
-///     Ok(())
-/// }
-/// ```
 pub async fn try_async_array_init<Err, F, Fut, T, const N: usize>(mut initializer: F)
     -> Result<[T; N], Err>
 where
