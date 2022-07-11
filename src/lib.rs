@@ -44,10 +44,8 @@
 //! });
 //! ```
 
-use ::core::{
-    mem::{self, MaybeUninit},
-    ptr, slice,
-};
+mod base;
+use base::*;
 
 #[inline]
 /// Initialize an array given an initializer expression.
@@ -71,16 +69,7 @@ pub fn array_init<F, T, const N: usize>(mut initializer: F) -> [T; N]
 where
     F: FnMut(usize) -> T,
 {
-    enum Unreachable {}
-
-    try_array_init(
-        // monomorphise into an infallible version
-        move |i| -> Result<T, Unreachable> { Ok(initializer(i)) },
-    )
-    .unwrap_or_else(
-        // zero-cost unwrap
-        |unreachable| match unreachable { /* ! */ },
-    )
+    base_array_init_impl!{initializer, T, N, 1, naked, synchronous}
 }
 
 #[inline]
@@ -110,11 +99,9 @@ pub fn from_iter<Iterable, T, const N: usize>(iterable: Iterable) -> Option<[T; 
 where
     Iterable: IntoIterator<Item = T>,
 {
-    try_array_init_impl::<_, _, T, N, 1>({
-        let mut iterator = iterable.into_iter();
-        move |_| iterator.next().ok_or(())
-    })
-    .ok()
+    let mut iterator = iterable.into_iter();
+    let mut initializer = move |_| iterator.next();
+    base_array_init_impl!{initializer, T, N, 1, option, synchronous}
 }
 
 #[inline]
@@ -144,11 +131,9 @@ pub fn from_iter_reversed<Iterable, T, const N: usize>(iterable: Iterable) -> Op
 where
     Iterable: IntoIterator<Item = T>,
 {
-    try_array_init_impl::<_, _, T, N, -1>({
-        let mut iterator = iterable.into_iter();
-        move |_| iterator.next().ok_or(())
-    })
-    .ok()
+    let mut iterator = iterable.into_iter();
+    let mut initializer = move |_| iterator.next();
+    base_array_init_impl!{initializer, T, N, -1, option, synchronous}
 }
 
 #[inline]
@@ -182,136 +167,40 @@ where
 /// let res : Result<[f64;4], DivideByZero> = array_init::try_array_init(|i| inv(3-i));
 /// assert_eq!(res,Err(DivideByZero));
 /// ```
-pub fn try_array_init<Err, F, T, const N: usize>(initializer: F) -> Result<[T; N], Err>
+pub fn try_array_init<Err, F, T, const N: usize>(mut initializer: F) -> Result<[T; N], Err>
 where
     F: FnMut(usize) -> Result<T, Err>,
 {
-    try_array_init_impl::<Err, F, T, N, 1>(initializer)
+    base_array_init_impl!{initializer, T, N, 1, result, synchronous}
 }
 
 #[inline]
-fn try_array_init_impl<Err, F, T, const N: usize, const D: i8>(
-    mut initializer: F,
-) -> Result<[T; N], Err>
+/// Initialize an array given an async initializer expression.
+///
+/// The initializer is given the index of the element. It is allowed
+/// to mutate external state; we will always initialize the elements in order.
+pub async fn async_array_init<F, Fut, T, const N: usize>(mut initializer: F)
+    -> [T; N]
 where
-    F: FnMut(usize) -> Result<T, Err>,
+    F: FnMut(usize) -> Fut,
+    Fut: core::future::Future<Output=T>
 {
-    // The implementation differentiates two cases:
-    //   A) `T` does not need to be dropped. Even if the initializer panics
-    //      or returns `Err` we will not leak memory.
-    //   B) `T` needs to be dropped. We must keep track of which elements have
-    //      been initialized so far, and drop them if we encounter a panic or `Err` midway.
-    if !mem::needs_drop::<T>() {
-        let mut array: MaybeUninit<[T; N]> = MaybeUninit::uninit();
-        // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
-        let mut ptr_i = array.as_mut_ptr() as *mut T;
+    base_array_init_impl!{initializer, T, N, 1, naked, asynchronous}
+}
 
-        // # Safety
-        //
-        //   - for D > 0, we are within the array since we start from the
-        //     beginning of the array, and we have `0 <= i < N`.
-        //   - for D < 0, we start at the end of the array and go back one
-        //     place before writing, going back N times in total, finishing
-        //     at the start of the array.
-        unsafe {
-            if D < 0 {
-                ptr_i = ptr_i.add(N);
-            }
-            for i in 0..N {
-                let value_i = initializer(i)?;
-                // We overwrite *ptr_i previously undefined value without reading or dropping it.
-                if D < 0 {
-                    ptr_i = ptr_i.sub(1);
-                }
-                ptr_i.write(value_i);
-                if D > 0 {
-                    ptr_i = ptr_i.add(1);
-                }
-            }
-            Ok(array.assume_init())
-        }
-    } else {
-        // else: `mem::needs_drop::<T>()`
-
-        /// # Safety
-        ///
-        ///   - `base_ptr[.. initialized_count]` must be a slice of init elements...
-        ///
-        ///   - ... that must be sound to `ptr::drop_in_place` if/when
-        ///     `UnsafeDropSliceGuard` is dropped: "symbolic ownership"
-        struct UnsafeDropSliceGuard<Item> {
-            base_ptr: *mut Item,
-            initialized_count: usize,
-        }
-
-        impl<Item> Drop for UnsafeDropSliceGuard<Item> {
-            fn drop(self: &'_ mut Self) {
-                unsafe {
-                    // # Safety
-                    //
-                    //   - the contract of the struct guarantees that this is sound
-                    ptr::drop_in_place(slice::from_raw_parts_mut(
-                        self.base_ptr,
-                        self.initialized_count,
-                    ));
-                }
-            }
-        }
-
-        //  If the `initializer(i)` call panics, `panic_guard` is dropped,
-        //  dropping `array[.. initialized_count]` => no memory leak!
-        //
-        // # Safety
-        //
-        //  1. - For D > 0, by construction, array[.. initiliazed_count] only
-        //       contains init elements, thus there is no risk of dropping
-        //       uninit data;
-        //     - For D < 0, by construction, array[N - initialized_count..] only
-        //       contains init elements.
-        //
-        //  2. - for D > 0, we are within the array since we start from the
-        //       beginning of the array, and we have `0 <= i < N`.
-        //     - for D < 0, we start at the end of the array and go back one
-        //       place before writing, going back N times in total, finishing
-        //       at the start of the array.
-        //
-        unsafe {
-            let mut array: MaybeUninit<[T; N]> = MaybeUninit::uninit();
-            // pointer to array = *mut [T; N] <-> *mut T = pointer to first element
-            let mut ptr_i = array.as_mut_ptr() as *mut T;
-            if D < 0 {
-                ptr_i = ptr_i.add(N);
-            }
-            let mut panic_guard = UnsafeDropSliceGuard {
-                base_ptr: ptr_i,
-                initialized_count: 0,
-            };
-
-            for i in 0..N {
-                // Invariant: `i` elements have already been initialized
-                panic_guard.initialized_count = i;
-                // If this panics or fails, `panic_guard` is dropped, thus
-                // dropping the elements in `base_ptr[.. i]` for D > 0 or
-                // `base_ptr[N - i..]` for D < 0.
-                let value_i = initializer(i)?;
-                // this cannot panic
-                // the previously uninit value is overwritten without being read or dropped
-                if D < 0 {
-                    ptr_i = ptr_i.sub(1);
-                    panic_guard.base_ptr = ptr_i;
-                }
-                ptr_i.write(value_i);
-                if D > 0 {
-                    ptr_i = ptr_i.add(1);
-                }
-            }
-            // From now on, the code can no longer `panic!`, let's take the
-            // symbolic ownership back
-            mem::forget(panic_guard);
-
-            Ok(array.assume_init())
-        }
-    }
+#[inline]
+/// Initialize an array given an async initializer expression that may fail.
+///
+/// The initializer is given the index (between 0 and `N - 1` included) of the element, and returns
+/// a `Result<T, Err>,`. It is allowed to mutate external state; we will always initialize from
+/// lower to higher indices.
+pub async fn try_async_array_init<Err, F, Fut, T, const N: usize>(mut initializer: F)
+    -> Result<[T; N], Err>
+where
+    F: FnMut(usize) -> Fut,
+    Fut: core::future::Future<Output=Result<T, Err>>
+{
+    base_array_init_impl!{initializer, T, N, 1, result, asynchronous}
 }
 
 #[cfg(test)]
