@@ -190,6 +190,38 @@ where
 }
 
 #[inline]
+/// Initialize an array given a source array and a mapping expression. The size of the source array
+/// is the same as the size of the returned array.
+///
+/// The mapper is given an element from the source array and maps it to an element in the
+/// destination.
+///
+/// # Examples
+///
+/// ```rust
+/// # #![allow(unused)]
+/// # extern crate array_init;
+/// #
+/// // Initialize an array of length 50 containing successive squares
+/// let arr: [usize; 50] = array_init::array_init(|i| i * i);
+///
+/// // Map each usize element to a u64 element.
+/// let u64_arr: [u64; 50] = array_init::map_array_init(&arr, |element| *element as u64);
+///
+/// assert!(u64_arr.iter().enumerate().all(|(i, &x)| x == (i * i) as u64));
+/// ```
+pub fn map_array_init<M, T, U, const N: usize>(source: &[U; N], mut mapper: M) -> [T; N]
+where
+    M: FnMut(&U) -> T,
+{
+    // # Safety
+    //   - The array size is known at compile time so we are certain that both the source and
+    //     desitination have the same size. If the two arrays are of the same size we know that a
+    //     valid index for one would be a valid index for the other.
+    array_init(|index| unsafe { mapper(source.get_unchecked(index)) })
+}
+
+#[inline]
 fn try_array_init_impl<Err, F, T, const N: usize, const D: i8>(
     mut initializer: F,
 ) -> Result<[T; N], Err>
