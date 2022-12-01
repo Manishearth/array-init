@@ -45,6 +45,15 @@ let fibonacci: [u64; 50] = array_init::array_init(|_| {
 });
 ```
 
+## Minimum Supported Rust Version (MSRV)
+
+`array-init` will only increase the MSRV on a new major
+or minor release, but not for patch releases.
+Any changes of the MSRV will be announced in the changelog.
+When increasing the MSRV, the new Rust version must have been
+released at least six months ago. The current MSRV is 1.51.0.
+MSRV changes can be expected to happen conservatively.
+
 ## Licensing
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.
